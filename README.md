@@ -155,6 +155,15 @@ All mutations require an authenticated session cookie.
 - **SM-2** — public-domain algorithm with decades of validation. Each card carries its own state, so there's no cron job — scheduling is lazy and computed on review.
 - **User-supplied Groq keys** — avoids a shared-key cost liability and makes the app deployable by anyone with a free Groq account.
 - **Turbopack (default in Next 16)** — faster dev + build than webpack.
+- **React Context over Redux** — app state is moderate (one user session, their decks/cards/reviews) and largely server-owned. A single `AppProvider` in [lib/app-context.tsx](lib/app-context.tsx) wraps the app and exposes `useApp()` with both state and mutation actions. Redux would add ceremony (actions, reducers, slices, devtools) without a real payoff here. For local UI state, plain `useState` is used. If the app grew to multi-tenant workspaces or realtime multi-user state, a dedicated store (Zustand / Redux Toolkit) would make sense.
+- **Zod for request validation** — every API route parses its body through a schema before touching the DB. This centralises validation, gives readable error messages, and keeps route handlers focused on business logic. See [lib/validation.ts](lib/validation.ts).
+- **Centralised error handler** — `withErrorHandling` in [lib/api-helpers.ts](lib/api-helpers.ts) wraps every route and maps Zod errors → 400, Mongoose `CastError` → 400 ("invalid id"), and unhandled exceptions → 500 without leaking internals.
+
+## Known limitations
+
+- **Rate limiting is in-memory** — the limiter in [lib/rate-limit.ts](lib/rate-limit.ts) stores buckets in a process-local `Map`. On Vercel's serverless runtime each function instance has its own memory, so limits are enforced per-instance, not globally. Under high concurrency an attacker can partially bypass the cap by hitting the platform from different regions. The correct production fix is a shared store (Upstash Redis, Cloudflare KV). For the assignment this was a conscious trade-off — it covers the common-case abuse vectors without introducing an external service dependency.
+- **JWT session invalidation** — changing a password does not revoke existing sessions. JWTs are self-contained and can't be centrally expired without a DB-backed session table or a token-version field we'd have to stamp into every JWT. The current UX treats this as acceptable; a production build would add a `tokenVersion` to the User model and check it in the NextAuth `session` callback.
+- **Dashboard hydration loads all user data up-front** — `/api/me` returns every deck, card, and recent reviews in one response. Fine for typical user sizes (tens of decks, hundreds of cards) but wouldn't scale to power users with thousands of cards. The fix would be lazy-loading cards per deck and reviews per-page.
 
 ## Author
 

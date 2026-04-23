@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/db';
 import { Card, Deck } from '@/lib/models';
 import { requireUser } from '@/lib/auth-server';
+import { withErrorHandling, parseBody, isValidObjectId } from '@/lib/api-helpers';
+import { cardPatchSchema } from '@/lib/validation';
+
+type RouteCtx = { params: Promise<{ id: string }> };
 
 async function assertOwned(userId: string, cardId: string) {
   await dbConnect();
@@ -12,27 +16,25 @@ async function assertOwned(userId: string, cardId: string) {
   return { card };
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export const PATCH = withErrorHandling<RouteCtx>(async (req, { params }) => {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { id } = await params;
-  const { front, back, due } = await req.json();
-  if (!front?.trim() || !back?.trim()) {
-    return NextResponse.json({ error: 'Front and back are required' }, { status: 400 });
+  if (!isValidObjectId(id)) {
+    return NextResponse.json({ error: 'Invalid card id' }, { status: 400 });
   }
 
+  const { front, back, due } = await parseBody(req, cardPatchSchema);
+
   const result = await assertOwned(user._id.toString(), id);
-  if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status });
+  if ('error' in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
 
   result.card.front = front.trim();
   result.card.back = back.trim();
-  if (typeof due === 'number' && Number.isFinite(due) && due > 0) {
-    result.card.due = due;
-  }
+  if (typeof due === 'number') result.card.due = due;
   await result.card.save();
 
   return NextResponse.json({
@@ -49,19 +51,22 @@ export async function PATCH(
       createdAt: result.card.createdAt,
     },
   });
-}
+});
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export const DELETE = withErrorHandling<RouteCtx>(async (_req: NextRequest, { params }) => {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { id } = await params;
+  if (!isValidObjectId(id)) {
+    return NextResponse.json({ error: 'Invalid card id' }, { status: 400 });
+  }
+
   const result = await assertOwned(user._id.toString(), id);
-  if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status });
+  if ('error' in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
 
   await result.card.deleteOne();
   return NextResponse.json({ ok: true });
-}
+});

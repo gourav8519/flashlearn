@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth-server';
 import { hashPassword, verifyPassword, validatePasswordStrength } from '@/lib/password';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { withErrorHandling, parseBody } from '@/lib/api-helpers';
+import { passwordChangeSchema } from '@/lib/validation';
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
@@ -15,11 +17,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { currentPassword, newPassword } = await req.json();
+  const { currentPassword, newPassword } = await parseBody(req, passwordChangeSchema);
 
-  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
-    return NextResponse.json({ error: 'Current and new password are required.' }, { status: 400 });
-  }
   if (user.passwordHash === 'oauth:google') {
     return NextResponse.json(
       { error: 'Your account uses Google sign-in — no password to change.' },
@@ -46,4 +45,4 @@ export async function POST(req: NextRequest) {
   await user.save();
 
   return NextResponse.json({ ok: true });
-}
+});

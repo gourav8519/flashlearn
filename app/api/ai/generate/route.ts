@@ -3,6 +3,8 @@ import Groq from 'groq-sdk';
 import { requireUser } from '@/lib/auth-server';
 import { resolveGroqKey } from '@/lib/ai-config';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { withErrorHandling, parseBody } from '@/lib/api-helpers';
+import { aiGenerateSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -24,7 +26,7 @@ You MUST respond with ONLY valid JSON matching this exact shape (no markdown, no
   ]
 }`;
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
@@ -44,28 +46,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { notes?: string; count?: number };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-
-  const notes = (body.notes ?? '').trim();
-  const count = Math.min(Math.max(Number(body.count) || 8, 1), 25);
-
-  if (notes.length < 20) {
-    return NextResponse.json(
-      { error: 'Please provide at least 20 characters of notes to generate from.' },
-      { status: 400 },
-    );
-  }
-  if (notes.length > 20_000) {
-    return NextResponse.json(
-      { error: 'Notes are too long. Keep under 20,000 characters.' },
-      { status: 400 },
-    );
-  }
+  const { notes, count } = await parseBody(req, aiGenerateSchema);
 
   const groq = new Groq({ apiKey });
 
@@ -116,7 +97,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error('Groq generation error', err);
-    const msg = err instanceof Error ? err.message : 'AI generation failed';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: 'AI generation failed' }, { status: 502 });
   }
-}
+});

@@ -4,8 +4,9 @@ import { Deck, Card, Review } from '@/lib/models';
 import { requireUser, publicUser } from '@/lib/auth-server';
 import { googleEnabled } from '@/auth';
 import { aiAvailable } from '@/lib/ai-config';
+import { withErrorHandling } from '@/lib/api-helpers';
 
-export async function GET() {
+export const GET = withErrorHandling(async () => {
   const user = await requireUser();
   if (!user)
     return NextResponse.json(
@@ -55,4 +56,4 @@ export async function GET() {
       durationMs: r.durationMs,
     })),
   });
-}
+});

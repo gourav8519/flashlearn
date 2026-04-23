@@ -3,6 +3,8 @@ import { dbConnect } from '@/lib/db';
 import { Card, Deck, Review } from '@/lib/models';
 import { requireUser } from '@/lib/auth-server';
 import { applySM2, Rating, xpForRating } from '@/lib/sm2';
+import { withErrorHandling, parseBody, isValidObjectId } from '@/lib/api-helpers';
+import { reviewCreateSchema } from '@/lib/validation';
 
 function todayKey() {
   const d = new Date();
@@ -14,13 +16,13 @@ function yesterdayKey() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
-  const { cardId, rating, durationMs } = await req.json();
-  if (!cardId || ![1, 2, 3, 4].includes(rating)) {
-    return NextResponse.json({ error: 'Invalid review payload' }, { status: 400 });
+  const { cardId, rating, durationMs } = await parseBody(req, reviewCreateSchema);
+  if (!isValidObjectId(cardId)) {
+    return NextResponse.json({ error: 'Invalid cardId' }, { status: 400 });
   }
 
   await dbConnect();
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest) {
     cardId: card._id,
     userId: user._id,
     rating,
-    durationMs: typeof durationMs === 'number' ? Math.max(0, durationMs) : 0,
+    durationMs,
   });
 
   const today = todayKey();
@@ -98,4 +100,4 @@ export async function POST(req: NextRequest) {
     },
     xpGained: bonus,
   });
-}
+});

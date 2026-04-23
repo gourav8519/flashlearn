@@ -3,15 +3,14 @@ import { dbConnect } from '@/lib/db';
 import { Deck } from '@/lib/models';
 import { requireUser } from '@/lib/auth-server';
 import { DECK_COLOR_PALETTE } from '@/lib/seed';
+import { withErrorHandling, parseBody } from '@/lib/api-helpers';
+import { deckCreateSchema } from '@/lib/validation';
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandling(async (req: NextRequest) => {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
-  const { name, description } = await req.json();
-  if (!name || !name.trim()) {
-    return NextResponse.json({ error: 'Deck name is required' }, { status: 400 });
-  }
+  const { name, description } = await parseBody(req, deckCreateSchema);
 
   await dbConnect();
   const existingCount = await Deck.countDocuments({ userId: user._id });
@@ -20,7 +19,7 @@ export async function POST(req: NextRequest) {
   const deck = await Deck.create({
     userId: user._id,
     name: name.trim(),
-    description: (description ?? '').trim(),
+    description: description.trim(),
     color,
   });
 
@@ -34,4 +33,4 @@ export async function POST(req: NextRequest) {
       createdAt: deck.createdAt,
     },
   });
-}
+});

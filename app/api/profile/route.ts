@@ -3,12 +3,14 @@ import { dbConnect } from '@/lib/db';
 import { User } from '@/lib/models';
 import { requireUser, publicUser } from '@/lib/auth-server';
 import { encryptSecret, maskSecret } from '@/lib/crypto';
+import { withErrorHandling, parseBody } from '@/lib/api-helpers';
+import { profilePatchSchema } from '@/lib/validation';
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withErrorHandling(async (req: NextRequest) => {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
-  const { name, email, groqApiKey } = await req.json();
+  const { name, email, groqApiKey } = await parseBody(req, profilePatchSchema);
   await dbConnect();
 
   if (email && email.toLowerCase() !== user.email) {
@@ -22,7 +24,7 @@ export async function PATCH(req: NextRequest) {
     if (groqApiKey === null || groqApiKey === '') {
       user.groqApiKey = undefined;
       user.groqApiKeyMask = undefined;
-    } else if (typeof groqApiKey === 'string') {
+    } else {
       const trimmed = groqApiKey.trim();
       if (!trimmed.startsWith('gsk_') || trimmed.length < 20) {
         return NextResponse.json(
@@ -37,4 +39,4 @@ export async function PATCH(req: NextRequest) {
 
   await user.save();
   return NextResponse.json({ user: publicUser(user) });
-}
+});

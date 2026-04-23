@@ -1,20 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/db';
 import { Deck, Card } from '@/lib/models';
 import { requireUser } from '@/lib/auth-server';
+import { withErrorHandling, parseBody, isValidObjectId } from '@/lib/api-helpers';
+import { cardCreateSchema } from '@/lib/validation';
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+type RouteCtx = { params: Promise<{ id: string }> };
+
+export const POST = withErrorHandling<RouteCtx>(async (req, { params }) => {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { id } = await params;
-  const { front, back } = await req.json();
-  if (!front?.trim() || !back?.trim()) {
-    return NextResponse.json({ error: 'Front and back are required' }, { status: 400 });
+  if (!isValidObjectId(id)) {
+    return NextResponse.json({ error: 'Invalid deck id' }, { status: 400 });
   }
+
+  const { front, back } = await parseBody(req, cardCreateSchema);
 
   await dbConnect();
 
@@ -41,4 +43,4 @@ export async function POST(
       createdAt: card.createdAt,
     },
   });
-}
+});
