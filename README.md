@@ -90,6 +90,15 @@ npm run build
 npm run start
 ```
 
+### 6. Tests
+
+```bash
+npm run typecheck   # TypeScript --noEmit (also runs in CI)
+npm run test:e2e    # Playwright e2e (starts its own dev server on :3100)
+```
+
+E2E tests create throwaway users with timestamped emails against your local MongoDB. To keep the test DB clean, point `MONGODB_URI` at a separate database before running them.
+
 ## Project structure
 
 ```
