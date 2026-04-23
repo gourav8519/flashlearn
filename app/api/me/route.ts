@@ -15,10 +15,12 @@ export async function GET() {
 
   await dbConnect();
 
-  const decks = await Deck.find({ userId: user._id }).sort({ createdAt: -1 }).lean();
+  const [decks, reviews] = await Promise.all([
+    Deck.find({ userId: user._id }).sort({ createdAt: -1 }).lean(),
+    Review.find({ userId: user._id }).sort({ reviewedAt: -1 }).limit(200).lean(),
+  ]);
   const deckIds = decks.map((d) => d._id);
   const cards = await Card.find({ deckId: { $in: deckIds } }).lean();
-  const reviews = await Review.find({ userId: user._id }).sort({ reviewedAt: -1 }).limit(1000).lean();
 
   return NextResponse.json({
     user: publicUser(user),

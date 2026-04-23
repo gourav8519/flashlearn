@@ -30,7 +30,10 @@ const providers: NextAuthConfig['providers'] = [
       if (!ipLimit.ok || !emailLimit.ok) return null;
 
       await dbConnect();
-      const user = await User.findOne({ email });
+      const user = await User.findOne(
+        { email },
+        { passwordHash: 1, email: 1, name: 1 },
+      ).lean();
       if (!user || !user.passwordHash) return null;
       const ok = await verifyPassword(password, user.passwordHash);
       if (!ok) return null;
